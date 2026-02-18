@@ -3,68 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>BNHS Asset Logistics</title>
+    <title>BNHS Asset Logistics - Smart AI</title>
     <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    
     <style>
         :root {
-            --primary: #f39c12; 
-            --dark: #2c3e50;    
-            --success: #27ae60;
-            --danger: #e74c3c;
-            --bg: #f4f7f6;
+            --primary: #f39c12; --dark: #2c3e50; --success: #27ae60; --danger: #e74c3c; --bg: #f4f7f6;
         }
-
-        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); color: #333; touch-action: manipulation; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); color: #333; }
         .header { background: var(--dark); color: white; padding: 20px 10px; text-align: center; border-bottom: 5px solid var(--primary); }
-        .header h1 { margin: 0; font-size: 1.2em; letter-spacing: 2px; text-transform: uppercase; }
+        .header h1 { margin: 0; font-size: 1.1em; letter-spacing: 2px; text-transform: uppercase; }
         .card { background: white; padding: 15px; margin: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        h3 { margin-top: 0; font-size: 0.9em; color: var(--dark); border-left: 4px solid var(--primary); padding-left: 10px; text-transform: uppercase; margin-bottom: 15px; }
+        h3 { margin-top: 0; font-size: 0.85em; color: var(--dark); border-left: 4px solid var(--primary); padding-left: 10px; text-transform: uppercase; margin-bottom: 15px; }
 
-        #reader { width: 100%; border-radius: 8px; background: #000; overflow: hidden; margin-top: 10px; }
+        #reader { width: 100%; border-radius: 8px; background: #000; overflow: hidden; }
         
         .result-box { background: #fff3cd; padding: 15px; border-radius: 10px; margin-top: 15px; border: 2px solid var(--primary); }
         label { font-weight: bold; font-size: 11px; color: var(--dark); text-transform: uppercase; display: block; margin-top: 10px; }
         input, select { width: 100%; padding: 12px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
         
-        button { width: 100%; border: none; padding: 15px; border-radius: 5px; font-weight: bold; font-size: 14px; cursor: pointer; text-transform: uppercase; }
+        button { width: 100%; border: none; padding: 15px; border-radius: 5px; font-weight: bold; font-size: 13px; cursor: pointer; text-transform: uppercase; }
         .btn-primary { background: var(--dark); color: white; }
         .btn-success { background: var(--success); color: white; margin-top: 10px; }
         .btn-cancel { background: var(--danger); color: white; margin-top: 5px; }
         
-        .btn-barcode { 
-            background: #e67e22; 
-            color: white; 
-            border-bottom: 4px solid #d35400;
-            margin: 10px 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
+        /* OCR UI Improvements */
+        .btn-ocr { background: #8e44ad; color: white; border-bottom: 4px solid #5e3370; margin: 10px 0; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-torch { background: #555; color: white; padding: 8px; font-size: 11px; margin-bottom: 5px; width: auto; display: inline-block; }
+        
+        /* OCR CANDIDATE LIST */
+        #candidate-container { display: none; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-top: 10px; }
+        .candidate-item { 
+            background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; margin-bottom: 5px; border-radius: 4px; 
+            font-family: monospace; font-size: 14px; text-align: center; color: #2c3e50; font-weight: bold;
         }
-        .scanning-active { background: var(--danger) !important; animation: pulse-red 1s infinite; }
-        @keyframes pulse-red { 50% { opacity: 0.8; } }
+        .candidate-item:active { background: var(--primary); color: white; }
 
+        #ocr-loading { display: none; text-align: center; font-size: 11px; color: #8e44ad; font-weight: bold; margin: 5px 0; }
         #status-bar { background: #dcdde1; padding: 6px; text-align: center; font-size: 11px; font-weight: bold; color: #7f8c8d; }
         #quick-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--dark); color: var(--primary); padding: 10px 20px; border-radius: 5px; display: none; z-index: 10000; font-weight: bold; border: 1px solid var(--primary); }
-        
-        #searchList { background: white; border: 1px solid #ddd; border-top: none; max-height: 200px; overflow-y: auto; }
-        .search-item { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h1>ASSET LOGISTICS</h1>
-        <div style="font-size: 0.7em; opacity: 0.8; margin-top: 5px;">BNHS INVENTORY TRACKER</div>
+        <h1>ASSET LOGISTICS + AI</h1>
+        <div style="font-size: 0.65em; opacity: 0.8; margin-top: 5px;">BNHS SMART INVENTORY</div>
     </div>
 
-    <div id="status-bar">CONNECTING TO LOCAL DB...</div>
+    <div id="status-bar">WAKING UP DATABASE...</div>
     <div id="quick-toast"></div>
 
     <div class="card">
-        <h3>1. Scan Hardware</h3>
+        <h3>1. Device Recognition</h3>
+        <button id="torchBtn" class="btn-torch" onclick="toggleTorch()" style="display:none;">🔦 Toggle Flashlight</button>
         <div id="reader"></div>
         <button id="startBtn" class="btn-primary" onclick="initScanner()" style="margin-top:10px;">📷 Start Camera</button>
 
@@ -72,14 +67,20 @@
             <h4 style="margin:0; font-size: 1.1em;">TAG: <span id="resCode" style="color:#d35400"></span></h4>
             
             <label>Serial Number</label>
-            <input type="text" id="fieldSerial" placeholder="Tap button to scan barcode">
+            <input type="text" id="fieldSerial" placeholder="Tap text below or type here">
             
-            <button id="barcodeBtn" class="btn-barcode" onclick="triggerBarcodeScan()">
-                <span>🔍</span> SCAN SERIAL BARCODE
+            <button id="ocrBtn" class="btn-ocr" onclick="performOCR()">
+                <span>🤖</span> ANALYZE LABEL (AI)
             </button>
+            <div id="ocr-loading">AI IS READING... HOLD STEADY...</div>
+            
+            <div id="candidate-container">
+                <p style="font-size: 10px; margin: 0 0 5px 0; color: #666;">TAP THE CORRECT SERIAL BELOW:</p>
+                <div id="candidate-list"></div>
+            </div>
             
             <label>Employee Custodian</label>
-            <input type="text" id="fieldCustodian" placeholder="Enter name">
+            <input type="text" id="fieldCustodian">
             
             <label>Condition</label>
             <select id="fieldCondition">
@@ -89,36 +90,29 @@
                 <option value="Missing">Missing</option>
             </select>
 
-            <button class="btn-success" onclick="saveRecord()">💾 Save & Link</button>
+            <button class="btn-success" onclick="saveRecord()">💾 Confirm Update</button>
             <button class="btn-cancel" onclick="cancelScan()">Cancel</button>
         </div>
     </div>
 
     <div class="card">
-        <h3>2. Search Database</h3>
-        <input type="text" id="searchInput" placeholder="Search Device Code..." onkeyup="performSearch()">
-        <div id="searchList"></div>
+        <h3>2. Search & Export</h3>
+        <input type="text" id="searchInput" placeholder="Search Code..." onkeyup="performSearch()">
+        <div id="searchList" style="max-height: 150px; overflow-y: auto;"></div>
+        <button class="btn-primary" onclick="exportToExcel()" style="margin-top:15px;">📥 Extract Master Excel</button>
     </div>
 
-    <div class="card">
-        <h3>3. Data Management</h3>
-        <button class="btn-primary" onclick="exportToExcel()">📥 Export Updated XLSX</button>
-        <div style="margin-top: 15px; padding: 12px; border: 1px solid #ddd; border-radius: 5px; background: #fdfdfd;">
-            <label style="margin-top:0">Upload Master CSV:</label>
-            <input type="file" id="csvFile" accept=".csv" style="font-size: 11px; border:none; padding: 5px 0;">
-            <button onclick="handleFileUpload()" style="background: #95a5a6; color: white; padding: 10px;">🔄 Sync Roster</button>
-        </div>
-    </div>
+    <canvas id="ocr-canvas" style="display:none;"></canvas>
 
     <script>
-        const db = new Dexie("InventoryIndustrialDB");
+        const db = new Dexie("InventoryIndustrialDB_v3");
         db.version(1).stores({
             assets: "deviceCode, serialNumber, brand, type, batch, dateReceived, mode, source, custodian, location, condition"
         });
 
         let html5QrCode = null;
         let activeAsset = null;
-        let barcodeMode = false;
+        let isTorchOn = false;
 
         function toast(msg) {
             const el = document.getElementById('quick-toast');
@@ -128,70 +122,85 @@
 
         async function updateStatus() {
             const count = await db.assets.count();
-            document.getElementById('status-bar').innerText = `LOCAL DATABASE: ${count} ITEMS REGISTERED`;
+            document.getElementById('status-bar').innerText = `LOCAL STORAGE: ${count} ASSETS`;
         }
 
-        // --- IMPROVED SCANNER LOGIC ---
         function initScanner() {
             document.getElementById('startBtn').style.display = 'none';
             html5QrCode = new Html5Qrcode("reader");
-            startDeviceScanner();
-        }
-
-        function startDeviceScanner() {
-            // Square box for QR Codes
+            
             const config = { fps: 20, qrbox: { width: 250, height: 250 } };
-            
             html5QrCode.start({ facingMode: "environment" }, config, (text) => {
-                if (!activeAsset) {
-                    selectAsset(text.trim());
-                } else if (barcodeMode) {
-                    document.getElementById('fieldSerial').value = text.trim();
-                    disableBarcodeMode();
-                    if (navigator.vibrate) navigator.vibrate(100);
-                    toast("SERIAL LINKED");
+                if (!activeAsset) selectAsset(text.trim());
+            }).then(() => {
+                const tracks = html5QrCode.getRunningTrack();
+                if (tracks && tracks[0].getCapabilities().torch) {
+                    document.getElementById('torchBtn').style.display = 'inline-block';
                 }
-            }).catch(err => console.error(err));
-        }
-
-        async function triggerBarcodeScan() {
-            barcodeMode = true;
-            const btn = document.getElementById('barcodeBtn');
-            btn.innerHTML = "⌛ AIM AT BARCODE...";
-            btn.classList.add('scanning-active');
-
-            // WIDE RECTANGLE for Barcodes
-            const barcodeConfig = { fps: 20, qrbox: { width: 320, height: 120 } };
-
-            // We restart the scanner with a wide box for 1D barcodes
-            await html5QrCode.stop();
-            html5QrCode.start({ facingMode: "environment" }, barcodeConfig, (text) => {
-                document.getElementById('fieldSerial').value = text.trim();
-                disableBarcodeMode();
-                if (navigator.vibrate) navigator.vibrate(100);
-                toast("SERIAL LINKED");
-                
-                // Return to QR mode (square box)
-                html5QrCode.stop().then(() => startDeviceScanner());
             });
-            
-            // Auto-revert if no scan within 10 seconds
-            setTimeout(() => { 
-                if(barcodeMode) {
-                    disableBarcodeMode();
-                    html5QrCode.stop().then(() => startDeviceScanner());
+        }
+
+        function toggleTorch() {
+            isTorchOn = !isTorchOn;
+            html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] });
+        }
+
+        // --- NEW & IMPROVED OCR LOGIC ---
+        async function performOCR() {
+            const loader = document.getElementById('ocr-loading');
+            const listDiv = document.getElementById('candidate-list');
+            const container = document.getElementById('candidate-container');
+            const video = document.querySelector('#reader video');
+            const canvas = document.getElementById('ocr-canvas');
+
+            if (!video) return;
+
+            loader.style.display = 'block';
+            container.style.display = 'none';
+            listDiv.innerHTML = "";
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            try {
+                const result = await Tesseract.recognize(canvas, 'eng');
+                
+                // 1. Split text into lines/blocks
+                // 2. Remove very short text (garbage)
+                // 3. Keep only alphanumeric and dashes
+                const lines = result.data.text.split('\n')
+                    .map(l => l.replace(/[^a-zA-Z0-9-]/g, '').trim())
+                    .filter(l => l.length > 4); // Serials are usually > 4 chars
+
+                // Remove duplicates
+                const uniqueLines = [...new Set(lines)];
+
+                if (uniqueLines.length > 0) {
+                    container.style.display = 'block';
+                    uniqueLines.forEach(text => {
+                        const item = document.createElement('div');
+                        item.className = 'candidate-item';
+                        item.innerText = text;
+                        item.onclick = () => {
+                            document.getElementById('fieldSerial').value = text;
+                            container.style.display = 'none';
+                            toast("Serial Applied");
+                        };
+                        listDiv.appendChild(item);
+                    });
+                    toast("Select the Serial Number");
+                } else {
+                    toast("AI couldn't find clear text");
                 }
-            }, 10000);
+            } catch (e) {
+                alert("AI Error: " + e);
+            } finally {
+                loader.style.display = 'none';
+            }
         }
 
-        function disableBarcodeMode() {
-            barcodeMode = false;
-            const btn = document.getElementById('barcodeBtn');
-            btn.innerHTML = "<span>🔍</span> SCAN SERIAL BARCODE";
-            btn.classList.remove('scanning-active');
-        }
-
-        // --- ASSET LOGIC ---
         async function selectAsset(code) {
             const asset = await db.assets.get(code);
             if (asset) {
@@ -201,9 +210,8 @@
                 document.getElementById('fieldCustodian').value = asset.custodian || "";
                 document.getElementById('fieldCondition').value = asset.condition || "Good working condition";
                 document.getElementById('scanResult').style.display = 'block';
-                document.getElementById('searchList').innerHTML = "";
-                document.getElementById('searchInput').value = "";
-                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                document.getElementById('candidate-container').style.display = 'none';
+                if (navigator.vibrate) navigator.vibrate(100);
             }
         }
 
@@ -214,47 +222,13 @@
                 custodian: document.getElementById('fieldCustodian').value.trim(),
                 condition: document.getElementById('fieldCondition').value
             });
-            toast("SAVED SUCCESSFULLY ✅");
+            toast("SAVED TO DATABASE ✅");
             cancelScan();
         }
 
         function cancelScan() {
             document.getElementById('scanResult').style.display = 'none';
             activeAsset = null;
-            if(barcodeMode) {
-                disableBarcodeMode();
-                html5QrCode.stop().then(() => startDeviceScanner());
-            }
-        }
-
-        // --- DATA SYNC ---
-        async function handleFileUpload() {
-            const file = document.getElementById('csvFile').files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const data = new Uint8Array(e.target.result);
-                const wb = XLSX.read(data, { type: 'array' });
-                const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                const mapped = json.map(r => ({
-                    deviceCode: String(r['Device Code'] || ""),
-                    serialNumber: String(r['Serial Number'] || ""),
-                    brand: String(r['Brand'] || ""),
-                    type: String(r['Type'] || ""),
-                    batch: String(r['Batch'] || ""),
-                    dateReceived: String(r['Date Received'] || ""),
-                    mode: String(r['Mode of Acquisition'] || ""),
-                    source: String(r['Source of Acquisition'] || ""),
-                    custodian: String(r['Employee Custodian'] || ""),
-                    location: String(r['Custodian Location'] || ""),
-                    condition: String(r['Condition'] || "Good working condition")
-                })).filter(i => i.deviceCode);
-                await db.assets.clear();
-                await db.assets.bulkPut(mapped);
-                updateStatus();
-                toast("DATABASE SYNCED");
-            };
-            reader.readAsArrayBuffer(file);
         }
 
         async function exportToExcel() {
@@ -274,8 +248,8 @@
             }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Inventory_Report");
-            XLSX.writeFile(wb, `BNHS_Inventory_${new Date().toISOString().slice(0,10)}.xlsx`);
+            XLSX.utils.book_append_sheet(wb, ws, "Master_Inventory");
+            XLSX.writeFile(wb, `BNHS_Inventory_Export.xlsx`);
         }
 
         async function performSearch() {
@@ -283,7 +257,7 @@
             const list = document.getElementById('searchList');
             if(q.length < 2) { list.innerHTML = ""; return; }
             const res = await db.assets.filter(a => a.deviceCode.toLowerCase().includes(q.toLowerCase())).limit(5).toArray();
-            list.innerHTML = res.map(a => `<div class="search-item" onclick="selectAsset('${a.deviceCode}')"><strong>${a.deviceCode}</strong><br><small>${a.custodian}</small></div>`).join('');
+            list.innerHTML = res.map(a => `<div onclick="selectAsset('${a.deviceCode}')" style="padding:12px; border-bottom:1px solid #eee; font-size:14px;"><b>${a.deviceCode}</b><br><small>${a.custodian}</small></div>`).join('');
         }
 
         document.addEventListener("DOMContentLoaded", updateStatus);
