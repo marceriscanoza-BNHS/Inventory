@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>BNHS Asset Logistics - Smart AI</title>
+    <title>BNHS Asset Logistics - Pro</title>
     <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
@@ -29,17 +29,11 @@
         .btn-primary { background: var(--dark); color: white; }
         .btn-success { background: var(--success); color: white; margin-top: 10px; }
         .btn-cancel { background: var(--danger); color: white; margin-top: 5px; }
-        
-        /* OCR UI Improvements */
         .btn-ocr { background: #8e44ad; color: white; border-bottom: 4px solid #5e3370; margin: 10px 0; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-torch { background: #555; color: white; padding: 8px; font-size: 11px; margin-bottom: 5px; width: auto; display: inline-block; }
         
-        /* OCR CANDIDATE LIST */
         #candidate-container { display: none; background: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-top: 10px; }
-        .candidate-item { 
-            background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; margin-bottom: 5px; border-radius: 4px; 
-            font-family: monospace; font-size: 14px; text-align: center; color: #2c3e50; font-weight: bold;
-        }
+        .candidate-item { background: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; margin-bottom: 5px; border-radius: 4px; font-family: monospace; font-size: 14px; text-align: center; font-weight: bold; }
         .candidate-item:active { background: var(--primary); color: white; }
 
         #ocr-loading { display: none; text-align: center; font-size: 11px; color: #8e44ad; font-weight: bold; margin: 5px 0; }
@@ -54,28 +48,28 @@
         <div style="font-size: 0.65em; opacity: 0.8; margin-top: 5px;">BNHS SMART INVENTORY</div>
     </div>
 
-    <div id="status-bar">WAKING UP DATABASE...</div>
+    <div id="status-bar">READY</div>
     <div id="quick-toast"></div>
 
     <div class="card">
         <h3>1. Device Recognition</h3>
-        <button id="torchBtn" class="btn-torch" onclick="toggleTorch()" style="display:none;">🔦 Toggle Flashlight</button>
+        <button id="torchBtn" class="btn-torch" onclick="toggleTorch()" style="display:none;">🔦 Toggle Light</button>
         <div id="reader"></div>
-        <button id="startBtn" class="btn-primary" onclick="initScanner()" style="margin-top:10px;">📷 Start Camera</button>
+        <button id="startBtn" class="btn-primary" onclick="initScanner()" style="margin-top:10px;">📷 Open Camera</button>
 
         <div id="scanResult" style="display:none;" class="result-box">
             <h4 style="margin:0; font-size: 1.1em;">TAG: <span id="resCode" style="color:#d35400"></span></h4>
             
             <label>Serial Number</label>
-            <input type="text" id="fieldSerial" placeholder="Tap text below or type here">
+            <input type="text" id="fieldSerial" placeholder="Tap AI result or type here">
             
             <button id="ocrBtn" class="btn-ocr" onclick="performOCR()">
                 <span>🤖</span> ANALYZE LABEL (AI)
             </button>
-            <div id="ocr-loading">AI IS READING... HOLD STEADY...</div>
+            <div id="ocr-loading">AI IS READING...</div>
             
             <div id="candidate-container">
-                <p style="font-size: 10px; margin: 0 0 5px 0; color: #666;">TAP THE CORRECT SERIAL BELOW:</p>
+                <p style="font-size: 10px; margin: 0 0 5px 0; color: #666;">TAP CORRECT SERIAL:</p>
                 <div id="candidate-list"></div>
             </div>
             
@@ -87,25 +81,33 @@
                 <option value="Good working condition">Good working condition</option>
                 <option value="For repair">For repair</option>
                 <option value="Condemned">Condemned</option>
-                <option value="Missing">Missing</option>
             </select>
 
-            <button class="btn-success" onclick="saveRecord()">💾 Confirm Update</button>
+            <button class="btn-success" onclick="saveRecord()">💾 Save & Close</button>
             <button class="btn-cancel" onclick="cancelScan()">Cancel</button>
         </div>
     </div>
 
     <div class="card">
-        <h3>2. Search & Export</h3>
-        <input type="text" id="searchInput" placeholder="Search Code..." onkeyup="performSearch()">
-        <div id="searchList" style="max-height: 150px; overflow-y: auto;"></div>
-        <button class="btn-primary" onclick="exportToExcel()" style="margin-top:15px;">📥 Extract Master Excel</button>
+        <h3>2. Search Inventory</h3>
+        <input type="text" id="searchInput" placeholder="Search Device Code..." onkeyup="performSearch()">
+        <div id="searchList" style="max-height: 150px; overflow-y: auto; background: #fff;"></div>
+    </div>
+
+    <div class="card">
+        <h3>3. Database Management</h3>
+        <button class="btn-primary" onclick="exportToExcel()">📥 Download Updated Excel</button>
+        <div style="margin-top: 15px; padding: 12px; border: 1px solid #ddd; border-radius: 5px; background: #fdfdfd;">
+            <label style="margin-top:0">Upload Master CSV:</label>
+            <input type="file" id="csvFile" accept=".csv" style="font-size: 11px; margin: 10px 0;">
+            <button onclick="handleFileUpload()" style="background: #95a5a6; color: white; padding: 10px; width: 100%;">🔄 Sync with Local Memory</button>
+        </div>
     </div>
 
     <canvas id="ocr-canvas" style="display:none;"></canvas>
 
     <script>
-        const db = new Dexie("InventoryIndustrialDB_v3");
+        const db = new Dexie("InventoryIndustrialDB_Final");
         db.version(1).stores({
             assets: "deviceCode, serialNumber, brand, type, batch, dateReceived, mode, source, custodian, location, condition"
         });
@@ -122,13 +124,12 @@
 
         async function updateStatus() {
             const count = await db.assets.count();
-            document.getElementById('status-bar').innerText = `LOCAL STORAGE: ${count} ASSETS`;
+            document.getElementById('status-bar').innerText = `LOCAL DATABASE: ${count} ASSETS`;
         }
 
         function initScanner() {
             document.getElementById('startBtn').style.display = 'none';
             html5QrCode = new Html5Qrcode("reader");
-            
             const config = { fps: 20, qrbox: { width: 250, height: 250 } };
             html5QrCode.start({ facingMode: "environment" }, config, (text) => {
                 if (!activeAsset) selectAsset(text.trim());
@@ -145,14 +146,12 @@
             html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] });
         }
 
-        // --- NEW & IMPROVED OCR LOGIC ---
         async function performOCR() {
             const loader = document.getElementById('ocr-loading');
             const listDiv = document.getElementById('candidate-list');
             const container = document.getElementById('candidate-container');
             const video = document.querySelector('#reader video');
             const canvas = document.getElementById('ocr-canvas');
-
             if (!video) return;
 
             loader.style.display = 'block';
@@ -166,15 +165,9 @@
 
             try {
                 const result = await Tesseract.recognize(canvas, 'eng');
-                
-                // 1. Split text into lines/blocks
-                // 2. Remove very short text (garbage)
-                // 3. Keep only alphanumeric and dashes
                 const lines = result.data.text.split('\n')
                     .map(l => l.replace(/[^a-zA-Z0-9-]/g, '').trim())
-                    .filter(l => l.length > 4); // Serials are usually > 4 chars
-
-                // Remove duplicates
+                    .filter(l => l.length > 4);
                 const uniqueLines = [...new Set(lines)];
 
                 if (uniqueLines.length > 0) {
@@ -190,15 +183,8 @@
                         };
                         listDiv.appendChild(item);
                     });
-                    toast("Select the Serial Number");
-                } else {
-                    toast("AI couldn't find clear text");
-                }
-            } catch (e) {
-                alert("AI Error: " + e);
-            } finally {
-                loader.style.display = 'none';
-            }
+                } else { toast("AI could not read text"); }
+            } catch (e) { console.error(e); } finally { loader.style.display = 'none'; }
         }
 
         async function selectAsset(code) {
@@ -222,7 +208,7 @@
                 custodian: document.getElementById('fieldCustodian').value.trim(),
                 condition: document.getElementById('fieldCondition').value
             });
-            toast("SAVED TO DATABASE ✅");
+            toast("SAVED ✅");
             cancelScan();
         }
 
@@ -231,24 +217,44 @@
             activeAsset = null;
         }
 
+        // DATABASE SYNC (RE-ADDED)
+        async function handleFileUpload() {
+            const file = document.getElementById('csvFile').files[0];
+            if (!file) { toast("Select a file first"); return; }
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, { type: 'array' });
+                const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                const mapped = json.map(r => ({
+                    deviceCode: String(r['Device Code'] || ""),
+                    serialNumber: String(r['Serial Number'] || ""),
+                    brand: String(r['Brand'] || ""),
+                    type: String(r['Type'] || ""),
+                    batch: String(r['Batch'] || ""),
+                    dateReceived: String(r['Date Received'] || ""),
+                    mode: String(r['Mode of Acquisition'] || ""),
+                    source: String(r['Source of Acquisition'] || ""),
+                    custodian: String(r['Employee Custodian'] || ""),
+                    location: String(r['Custodian Location'] || ""),
+                    condition: String(r['Condition'] || "Good working condition")
+                })).filter(i => i.deviceCode);
+                await db.assets.clear();
+                await db.assets.bulkPut(mapped);
+                updateStatus();
+                toast("DATABASE SYNCED");
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
         async function exportToExcel() {
             const all = await db.assets.toArray();
             const exportData = all.map(a => ({
-                'Device Code': a.deviceCode,
-                'Serial Number': a.serialNumber,
-                'Brand': a.brand,
-                'Type': a.type,
-                'Batch': a.batch,
-                'Date Received': a.dateReceived,
-                'Mode of Acquisition': a.mode,
-                'Source of Acquisition': a.source,
-                'Employee Custodian': a.custodian,
-                'Custodian Location': a.location,
-                'Condition': a.condition
+                'Device Code': a.deviceCode, 'Serial Number': a.serialNumber, 'Brand': a.brand, 'Type': a.type, 'Batch': a.batch, 'Date Received': a.dateReceived, 'Mode of Acquisition': a.mode, 'Source of Acquisition': a.source, 'Employee Custodian': a.custodian, 'Custodian Location': a.location, 'Condition': a.condition
             }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Master_Inventory");
+            XLSX.utils.book_append_sheet(wb, ws, "Inventory");
             XLSX.writeFile(wb, `BNHS_Inventory_Export.xlsx`);
         }
 
