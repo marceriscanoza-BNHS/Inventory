@@ -1,68 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>BNHS Asset Tracker</title>
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; margin: 10px; background: #f0f2f5; color: #333; touch-action: manipulation; }
+        .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .header h1 { font-size: 1.4em; color: #0056b3; margin: 0; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        h3 { margin-top: 0; font-size: 1.1em; color: #0056b3; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        button { width: 100%; border: none; padding: 12px; border-radius: 8px; font-weight: bold; margin: 5px 0; font-size: 14px; cursor: pointer; transition: opacity 0.2s; }
+        button:active { opacity: 0.7; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        #reader { width: 100%; max-width: 400px; aspect-ratio: 1/1; border-radius: 12px; background: #000; margin: 0 auto; overflow: hidden; }
+        .result-box { background: #fff; padding: 15px; border-radius: 10px; margin-top: 10px; border: 2px solid #007bff; }
+        #status-bar { font-weight: bold; padding: 8px; border-radius: 8px; text-align: center; font-size: 12px; background: #e9ecef; margin-bottom: 10px; }
+        .search-row { display: flex; gap: 5px; margin-bottom: 10px; }
+        input, select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
+        #searchList { max-height: 200px; overflow-y: auto; background: #fff; border: 1px solid #ddd; border-radius: 8px; display: none; margin-bottom: 10px; }
+        .search-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .search-item:last-child { border-bottom: none; }
+        .info-label { font-size: 11px; color: #666; font-weight: bold; margin-top: 10px; display: block; }
+        table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        #quick-toast { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 12px 25px; border-radius: 50px; display: none; z-index: 10000; }
+    </style>
+</head>
 <body>
 
-    <h2>📦 Inventory Mobile</h2>
-    
-    <div class="card" style="background: #e7f3ff; border: 1px solid #b2d7ff;">
-        <label>🔍 Manual Search (by Device Code)</label>
-        <div style="display: flex; gap: 5px;">
-            <input type="text" id="manualSearchInput" placeholder="Enter Device Code...">
-            <button style="width: 80px;" onclick="manualSearch()">Find</button>
+    <div class="header">
+        <h1>BNHS INVENTORY</h1>
+        <p style="margin:2px 0; font-size: 0.8em; color: #666;">Asset & Serial Number Tracker</p>
+    </div>
+
+    <div id="status-bar">Initializing...</div>
+    <div id="quick-toast"></div>
+
+    <div class="card">
+        <h3>Manual Search</h3>
+        <div class="search-row">
+            <input type="text" id="searchInput" placeholder="Enter Device Code (e.g. 0005)" onkeyup="performSearch()">
+            <button class="btn-primary" style="width:60px;" onclick="performSearch()">🔍</button>
+        </div>
+        <div id="searchList"></div>
+    </div>
+
+    <div class="card" style="text-align: center;">
+        <h3>Scanner</h3>
+        <button id="startBtn" class="btn-primary" onclick="initScanner()">📷 Open Camera</button>
+        <div id="reader"></div>
+
+        <div id="scanResult" style="display:none; text-align: left;" class="result-box">
+            <h4 style="margin:0; color:#0056b3;">Device Found: <span id="resCode"></span></h4>
+            
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 13px;">
+                <b>Brand:</b> <span id="resBrand"></span><br>
+                <b>Type:</b> <span id="resType"></span><br>
+                <b>Custodian:</b> <span id="resCust"></span>
+            </div>
+
+            <label class="info-label">SERIAL NUMBER (Scan Barcode Now)</label>
+            <input type="text" id="fieldSerial" placeholder="Waiting for barcode scan...">
+            
+            <label class="info-label">EMPLOYEE CUSTODIAN</label>
+            <input type="text" id="fieldCustodian">
+            
+            <label class="info-label">CONDITION</label>
+            <select id="fieldCondition">
+                <option value="Good working condition">Good working condition</option>
+                <option value="For repair">For repair</option>
+                <option value="Condemned">Condemned</option>
+                <option value="Missing">Missing</option>
+            </select>
+
+            <button class="btn-success" onclick="saveRecord()" style="margin-top: 15px;">💾 Update & Save</button>
+            <button class="btn-secondary" onclick="cancelScan()">Cancel</button>
         </div>
     </div>
 
     <div class="card">
-        <label>Step 1: Setup Database</label>
-        <input type="file" id="csvImport" accept=".csv">
-        <button class="secondary" onclick="exportData()">📥 Export Updated CSV</button>
+        <h3>Database Tools</h3>
+        <button class="btn-success" onclick="exportToExcel()">📥 Extract Updated Database (.xlsx)</button>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+        <label style="font-size: 11px; font-weight: bold;">Upload Master CSV:</label>
+        <input type="file" id="csvFile" accept=".csv" style="font-size: 11px; margin: 10px 0;">
+        <button class="btn-secondary" onclick="handleFileUpload()">📤 Sync with File</button>
     </div>
-
-    <div style="display: flex; gap: 10px;">
-        <button id="scanBtn" onclick="startScanner()">📷 Open Scanner</button>
-        <button class="secondary" onclick="stopScanner()">🛑 Close Scanner</button>
-    </div>
-    
-    <div id="reader"></div>
 
     <script>
-        // ... (Keep existing DB and Import logic) ...
+        // 1. DATABASE SETUP
+        const db = new Dexie("AssetTrackerDB");
+        db.version(1).stores({
+            assets: "deviceCode, serialNumber, brand, type, batch, dateReceived, mode, source, custodian, location, condition"
+        });
 
-        // NEW: Manual Search Logic
-        async function manualSearch() {
-            const code = document.getElementById('manualSearchInput').value.trim();
-            if (code) {
-                await loadDevice(code);
-                document.getElementById('manualSearchInput').value = ""; // Clear search
+        let scanner = null;
+        let activeAsset = null;
+
+        // 2. UI HELPERS
+        function toast(msg) {
+            const el = document.getElementById('quick-toast');
+            el.innerText = msg; el.style.display = "block";
+            setTimeout(() => { el.style.display = "none"; }, 2000);
+        }
+
+        async function updateStatus() {
+            const count = await db.assets.count();
+            document.getElementById('status-bar').innerText = count > 0 ? `ONLINE: ${count} Assets in Memory` : `⚠️ DATABASE EMPTY`;
+        }
+
+        // 3. MANUAL SEARCH
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const listDiv = document.getElementById('searchList');
+            if (query.length < 2) { listDiv.style.display = 'none'; return; }
+
+            const matches = await db.assets.filter(a => a.deviceCode.toLowerCase().includes(query)).limit(10).toArray();
+            if (matches.length > 0) {
+                listDiv.style.display = 'block';
+                listDiv.innerHTML = matches.map(a => `
+                    <div class="search-item" onclick="selectAsset('${a.deviceCode}')">
+                        <strong>${a.deviceCode}</strong><br>
+                        <small>${a.brand} - ${a.custodian}</small>
+                    </div>`).join('');
+            } else {
+                listDiv.style.display = 'none';
             }
         }
 
-        // NEW: Stop Scanner Logic
-        function stopScanner() {
-            html5QrCode.stop().then(() => {
-                document.getElementById('scanBtn').classList.remove('hidden');
-                console.log("Scanner stopped.");
-            }).catch(err => console.log("Scanner was not running."));
+        // 4. SELECTION LOGIC
+        async function selectAsset(code) {
+            const asset = await db.assets.get(code);
+            if (asset) {
+                activeAsset = asset;
+                document.getElementById('resCode').innerText = asset.deviceCode;
+                document.getElementById('resBrand').innerText = asset.brand || "N/A";
+                document.getElementById('resType').innerText = asset.type || "N/A";
+                document.getElementById('resCust').innerText = asset.custodian || "N/A";
+                
+                document.getElementById('fieldSerial').value = asset.serialNumber || "";
+                document.getElementById('fieldCustodian').value = asset.custodian || "";
+                document.getElementById('fieldCondition').value = asset.condition || "Good working condition";
+                
+                document.getElementById('scanResult').style.display = 'block';
+                document.getElementById('searchList').style.display = 'none';
+                document.getElementById('searchInput').value = "";
+                if (scanner && scanner.isScanning) scanner.pause(true);
+                toast("Device Loaded");
+            }
         }
 
-        // UPDATED: Scanner Logic (added better error handling)
-        function startScanner() {
-            document.getElementById('scanBtn').classList.add('hidden');
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                { fps: 15, qrbox: { width: 250, height: 150 } },
-                (decodedText) => {
-                    if (!activeDeviceCode) {
-                        loadDevice(decodedText.trim());
-                    } else {
-                        document.getElementById('fieldSerial').value = decodedText.trim();
-                        if (navigator.vibrate) navigator.vibrate(100);
-                    }
+        // 5. SCANNER LOGIC
+        function initScanner() {
+            document.getElementById('startBtn').style.display = 'none';
+            scanner = new Html5Qrcode("reader");
+            const config = { fps: 15, qrbox: { width: 250, height: 180 } };
+            
+            scanner.start({ facingMode: "environment" }, config, (text) => {
+                const code = text.trim();
+                // If form is closed, treat scan as Device Code. If form is open, treat as Serial Number.
+                if (document.getElementById('scanResult').style.display === 'none') {
+                    selectAsset(code);
+                } else {
+                    document.getElementById('fieldSerial').value = code;
+                    toast("Barcode Linked");
                 }
-            ).catch(err => {
-                alert("Camera error: " + err);
-                document.getElementById('scanBtn').classList.remove('hidden');
+            }).catch(err => {
+                alert("Camera Access Denied: " + err);
+                document.getElementById('startBtn').style.display = 'block';
             });
         }
 
-        // ... (Keep loadDevice, saveChanges, and renderTable logic) ...
+        function cancelScan() {
+            document.getElementById('scanResult').style.display = 'none';
+            activeAsset = null;
+            if (scanner) scanner.resume();
+        }
+
+        // 6. SAVE UPDATE
+        async function saveRecord() {
+            if (!activeAsset) return;
+            await db.assets.update(activeAsset.deviceCode, {
+                serialNumber: document.getElementById('fieldSerial').value.trim(),
+                custodian: document.getElementById('fieldCustodian').value.trim(),
+                condition: document.getElementById('fieldCondition').value
+            });
+            toast("Saved Successfully ✅");
+            cancelScan();
+            updateStatus();
+        }
+
+        // 7. FILE HANDLING (CSV UPLOAD)
+        async function handleFileUpload() {
+            const file = document.getElementById('csvFile').files[0];
+            if (!file) { toast("Please select a CSV file"); return; }
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+
+                const mappedData = json.map(row => ({
+                    deviceCode: String(row['Device Code'] || ""),
+                    serialNumber: String(row['Serial Number'] || ""),
+                    brand: String(row['Brand'] || ""),
+                    type: String(row['Type'] || ""),
+                    batch: String(row['Batch'] || ""),
+                    dateReceived: String(row['Date Received'] || ""),
+                    mode: String(row['Mode of Acquisition'] || ""),
+                    source: String(row['Source of Acquisition'] || ""),
+                    custodian: String(row['Employee Custodian'] || ""),
+                    location: String(row['Custodian Location'] || ""),
+                    condition: String(row['Condition'] || "Good working condition")
+                })).filter(item => item.deviceCode !== "");
+
+                await db.assets.clear();
+                await db.assets.bulkPut(mappedData);
+                toast(`Imported ${mappedData.length} records!`);
+                updateStatus();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 8. EXCEL EXTRACTION
+        async function exportToExcel() {
+            const all = await db.assets.toArray();
+            if (all.length === 0) { toast("Nothing to export"); return; }
+            
+            // Re-mapping to original CSV headers for compatibility
+            const exportData = all.map(a => ({
+                'Device Code': a.deviceCode,
+                'Serial Number': a.serialNumber,
+                'Brand': a.brand,
+                'Type': a.type,
+                'Batch': a.batch,
+                'Date Received': a.dateReceived,
+                'Mode of Acquisition': a.mode,
+                'Source of Acquisition': a.source,
+                'Employee Custodian': a.custodian,
+                'Custodian Location': a.location,
+                'Condition': a.condition
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Inventory_Report");
+            XLSX.writeFile(wb, `BNHS_Updated_Inventory_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        document.addEventListener("DOMContentLoaded", updateStatus);
     </script>
 </body>
+</html>
