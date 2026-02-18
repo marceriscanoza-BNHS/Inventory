@@ -9,31 +9,22 @@
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
     <style>
         :root {
-            --primary: #f39c12; /* Industrial Amber */
-            --dark: #2c3e50;    /* Slate Grey */
+            --primary: #f39c12; 
+            --dark: #2c3e50;    
             --success: #27ae60;
             --danger: #e74c3c;
             --bg: #f4f7f6;
         }
 
         body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); color: #333; touch-action: manipulation; }
-        
         .header { background: var(--dark); color: white; padding: 20px 10px; text-align: center; border-bottom: 5px solid var(--primary); }
         .header h1 { margin: 0; font-size: 1.2em; letter-spacing: 2px; text-transform: uppercase; }
-        
         .card { background: white; padding: 15px; margin: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         h3 { margin-top: 0; font-size: 0.9em; color: var(--dark); border-left: 4px solid var(--primary); padding-left: 10px; text-transform: uppercase; margin-bottom: 15px; }
 
         #reader { width: 100%; border-radius: 8px; background: #000; overflow: hidden; margin-top: 10px; }
         
-        .result-box { 
-            background: #fff3cd; 
-            padding: 15px; 
-            border-radius: 10px; 
-            margin-top: 15px; 
-            border: 2px solid var(--primary); 
-        }
-
+        .result-box { background: #fff3cd; padding: 15px; border-radius: 10px; margin-top: 15px; border: 2px solid var(--primary); }
         label { font-weight: bold; font-size: 11px; color: var(--dark); text-transform: uppercase; display: block; margin-top: 10px; }
         input, select { width: 100%; padding: 12px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; box-sizing: border-box; }
         
@@ -45,7 +36,7 @@
         .btn-barcode { 
             background: #e67e22; 
             color: white; 
-            border-bottom: 3px solid #d35400;
+            border-bottom: 4px solid #d35400;
             margin: 10px 0;
             display: flex;
             align-items: center;
@@ -53,7 +44,6 @@
             gap: 10px;
         }
         .scanning-active { background: var(--danger) !important; animation: pulse-red 1s infinite; }
-
         @keyframes pulse-red { 50% { opacity: 0.8; } }
 
         #status-bar { background: #dcdde1; padding: 6px; text-align: center; font-size: 11px; font-weight: bold; color: #7f8c8d; }
@@ -126,7 +116,7 @@
             assets: "deviceCode, serialNumber, brand, type, batch, dateReceived, mode, source, custodian, location, condition"
         });
 
-        let scanner = null;
+        let html5QrCode = null;
         let activeAsset = null;
         let barcodeMode = false;
 
@@ -141,35 +131,57 @@
             document.getElementById('status-bar').innerText = `LOCAL DATABASE: ${count} ITEMS REGISTERED`;
         }
 
-        // --- SCANNER LOGIC ---
+        // --- IMPROVED SCANNER LOGIC ---
         function initScanner() {
             document.getElementById('startBtn').style.display = 'none';
-            scanner = new Html5Qrcode("reader");
+            html5QrCode = new Html5Qrcode("reader");
+            startDeviceScanner();
+        }
+
+        function startDeviceScanner() {
+            // Square box for QR Codes
+            const config = { fps: 20, qrbox: { width: 250, height: 250 } };
             
-            scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => {
-                const code = text.trim();
-                
+            html5QrCode.start({ facingMode: "environment" }, config, (text) => {
                 if (!activeAsset) {
-                    // Logic for Device Code QR
-                    selectAsset(code);
+                    selectAsset(text.trim());
                 } else if (barcodeMode) {
-                    // Logic for Serial Barcode (only if button was pressed)
-                    document.getElementById('fieldSerial').value = code;
+                    document.getElementById('fieldSerial').value = text.trim();
                     disableBarcodeMode();
                     if (navigator.vibrate) navigator.vibrate(100);
                     toast("SERIAL LINKED");
                 }
-            }).catch(err => alert("Camera Error: " + err));
+            }).catch(err => console.error(err));
         }
 
-        function triggerBarcodeScan() {
+        async function triggerBarcodeScan() {
             barcodeMode = true;
             const btn = document.getElementById('barcodeBtn');
-            btn.innerHTML = "⌛ READY... SCAN BARCODE";
+            btn.innerHTML = "⌛ AIM AT BARCODE...";
             btn.classList.add('scanning-active');
+
+            // WIDE RECTANGLE for Barcodes
+            const barcodeConfig = { fps: 20, qrbox: { width: 320, height: 120 } };
+
+            // We restart the scanner with a wide box for 1D barcodes
+            await html5QrCode.stop();
+            html5QrCode.start({ facingMode: "environment" }, barcodeConfig, (text) => {
+                document.getElementById('fieldSerial').value = text.trim();
+                disableBarcodeMode();
+                if (navigator.vibrate) navigator.vibrate(100);
+                toast("SERIAL LINKED");
+                
+                // Return to QR mode (square box)
+                html5QrCode.stop().then(() => startDeviceScanner());
+            });
             
-            // Auto-disable if nothing scanned in 8 seconds to prevent spam
-            setTimeout(() => { if(barcodeMode) disableBarcodeMode(); }, 8000);
+            // Auto-revert if no scan within 10 seconds
+            setTimeout(() => { 
+                if(barcodeMode) {
+                    disableBarcodeMode();
+                    html5QrCode.stop().then(() => startDeviceScanner());
+                }
+            }, 10000);
         }
 
         function disableBarcodeMode() {
@@ -179,6 +191,7 @@
             btn.classList.remove('scanning-active');
         }
 
+        // --- ASSET LOGIC ---
         async function selectAsset(code) {
             const asset = await db.assets.get(code);
             if (asset) {
@@ -187,7 +200,6 @@
                 document.getElementById('fieldSerial').value = asset.serialNumber || "";
                 document.getElementById('fieldCustodian').value = asset.custodian || "";
                 document.getElementById('fieldCondition').value = asset.condition || "Good working condition";
-                
                 document.getElementById('scanResult').style.display = 'block';
                 document.getElementById('searchList').innerHTML = "";
                 document.getElementById('searchInput').value = "";
@@ -209,7 +221,10 @@
         function cancelScan() {
             document.getElementById('scanResult').style.display = 'none';
             activeAsset = null;
-            disableBarcodeMode();
+            if(barcodeMode) {
+                disableBarcodeMode();
+                html5QrCode.stop().then(() => startDeviceScanner());
+            }
         }
 
         // --- DATA SYNC ---
