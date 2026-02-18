@@ -1,0 +1,68 @@
+<body>
+
+    <h2>📦 Inventory Mobile</h2>
+    
+    <div class="card" style="background: #e7f3ff; border: 1px solid #b2d7ff;">
+        <label>🔍 Manual Search (by Device Code)</label>
+        <div style="display: flex; gap: 5px;">
+            <input type="text" id="manualSearchInput" placeholder="Enter Device Code...">
+            <button style="width: 80px;" onclick="manualSearch()">Find</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <label>Step 1: Setup Database</label>
+        <input type="file" id="csvImport" accept=".csv">
+        <button class="secondary" onclick="exportData()">📥 Export Updated CSV</button>
+    </div>
+
+    <div style="display: flex; gap: 10px;">
+        <button id="scanBtn" onclick="startScanner()">📷 Open Scanner</button>
+        <button class="secondary" onclick="stopScanner()">🛑 Close Scanner</button>
+    </div>
+    
+    <div id="reader"></div>
+
+    <script>
+        // ... (Keep existing DB and Import logic) ...
+
+        // NEW: Manual Search Logic
+        async function manualSearch() {
+            const code = document.getElementById('manualSearchInput').value.trim();
+            if (code) {
+                await loadDevice(code);
+                document.getElementById('manualSearchInput').value = ""; // Clear search
+            }
+        }
+
+        // NEW: Stop Scanner Logic
+        function stopScanner() {
+            html5QrCode.stop().then(() => {
+                document.getElementById('scanBtn').classList.remove('hidden');
+                console.log("Scanner stopped.");
+            }).catch(err => console.log("Scanner was not running."));
+        }
+
+        // UPDATED: Scanner Logic (added better error handling)
+        function startScanner() {
+            document.getElementById('scanBtn').classList.add('hidden');
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                { fps: 15, qrbox: { width: 250, height: 150 } },
+                (decodedText) => {
+                    if (!activeDeviceCode) {
+                        loadDevice(decodedText.trim());
+                    } else {
+                        document.getElementById('fieldSerial').value = decodedText.trim();
+                        if (navigator.vibrate) navigator.vibrate(100);
+                    }
+                }
+            ).catch(err => {
+                alert("Camera error: " + err);
+                document.getElementById('scanBtn').classList.remove('hidden');
+            });
+        }
+
+        // ... (Keep loadDevice, saveChanges, and renderTable logic) ...
+    </script>
+</body>
