@@ -108,7 +108,8 @@
 
     <div class="card">
         <h3>2. Search & Tools</h3>
-        <input type="text" id="searchInput" placeholder="Search Code or Serial..." oninput="performSearch()">
+        <!-- Changed placeholder to emphasize Serial search -->
+        <input type="text" id="searchInput" placeholder="Search Serial Number..." oninput="performSearch()">
         <div id="searchList" style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; margin-top: 5px; border-radius: 4px; display: none;"></div>
         
         <button class="btn-primary" onclick="exportToExcel()" style="margin-top:15px;">📥 Download Report</button>
@@ -317,7 +318,7 @@
             XLSX.writeFile(wb, `BNHS_Inventory.xlsx`);
         }
 
-        // IMPROVED SEARCH FUNCTION
+        // UPDATED: Search function optimized for Serial Number primary lookup
         async function performSearch() {
             const q = document.getElementById('searchInput').value.trim().toLowerCase();
             const list = document.getElementById('searchList');
@@ -329,25 +330,27 @@
             }
             
             try {
-                // Fetch all to perform manual include check (Dexie filter)
+                // Fetch results by checking Serial Number first, then Code
                 const res = await db.assets.filter(a => {
-                    const codeStr = String(a.deviceCode || "").toLowerCase();
                     const serialStr = String(a.serialNumber || "").toLowerCase();
-                    return codeStr.includes(q) || serialStr.includes(q);
+                    const codeStr = String(a.deviceCode || "").toLowerCase();
+                    // Prioritize serial match for manual search
+                    return serialStr.includes(q) || codeStr.includes(q);
                 }).limit(15).toArray();
 
                 if (res.length > 0) {
                     list.style.display = "block";
                     list.innerHTML = res.map(a => `
                         <div onclick="selectAsset('${a.deviceCode}')" style="padding:12px; border-bottom:1px solid #eee; cursor:pointer; background: white;">
-                            <div style="font-weight: bold; color: var(--dark);">${a.deviceCode}</div>
-                            <div style="font-size: 11px; color: #666;">
-                                SN: ${a.serialNumber || '---'} | ${a.brand || ''} ${a.type || ''}
+                            <!-- Highlight Serial Number for easier recognition -->
+                            <div style="font-weight: bold; color: var(--primary); font-family: monospace;">SN: ${a.serialNumber || 'NO SERIAL'}</div>
+                            <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                                <b>ID:</b> ${a.deviceCode} | ${a.brand || ''} ${a.type || ''}
                             </div>
                         </div>
                     `).join('');
                 } else {
-                    list.innerHTML = "<div style='padding:10px; color: #999; text-align:center;'>No matches found</div>";
+                    list.innerHTML = "<div style='padding:10px; color: #999; text-align:center;'>No matching serial/code found</div>";
                     list.style.display = "block";
                 }
             } catch (err) {
