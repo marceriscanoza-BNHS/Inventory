@@ -107,9 +107,9 @@
     </div>
 
     <div class="card">
-        <h3>2. Search Tool</h3>
-        <input type="text" id="searchInput" placeholder="Search Code or Serial..." onkeyup="performSearch()">
-        <div id="searchList" style="max-height: 120px; overflow-y: auto;"></div>
+        <h3>2. Search & Tools</h3>
+        <input type="text" id="searchInput" placeholder="Search Code or Serial..." oninput="performSearch()">
+        <div id="searchList" style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; margin-top: 5px; border-radius: 4px; display: none;"></div>
         
         <button class="btn-primary" onclick="exportToExcel()" style="margin-top:15px;">📥 Download Report</button>
         <div style="margin-top: 15px; padding: 12px; border: 1px solid #ddd; border-radius: 5px; background: #fdfdfd;">
@@ -162,7 +162,6 @@
             html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] });
         }
 
-        // --- OCR LOGIC WITH FEEDBACK ---
         async function performOCR() {
             const loader = document.getElementById('ocr-loading');
             const listDiv = document.getElementById('candidate-list');
@@ -234,6 +233,7 @@
                 document.getElementById('fieldCustodian').value = asset.custodian || "";
                 document.getElementById('fieldCondition').value = asset.condition || "Good working condition";
                 box.style.display = 'block';
+                document.getElementById('searchList').style.display = 'none';
                 if (navigator.vibrate) navigator.vibrate(100);
             } else {
                 if(confirm(`Code "${code}" not found. Add as new device?`)) {
@@ -257,6 +257,7 @@
             document.getElementById('fieldCustodian').value = "";
             document.getElementById('fieldCondition').value = "Good working condition";
             box.style.display = 'block';
+            document.getElementById('searchList').style.display = 'none';
             window.scrollTo(0, box.offsetTop);
         }
 
@@ -285,7 +286,6 @@
             activeAsset = null;
         }
 
-        // --- DATA SYNC ---
         async function handleFileUpload() {
             const file = document.getElementById('csvFile').files[0];
             if (!file) return;
@@ -295,12 +295,12 @@
                 const wb = XLSX.read(data, { type: 'array' });
                 const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                 const mapped = json.map(r => ({
-                    deviceCode: String(r['Device Code'] || ""),
-                    serialNumber: String(r['Serial Number'] || ""),
-                    brand: String(r['Brand'] || ""),
-                    type: String(r['Type'] || ""),
-                    custodian: String(r['Employee Custodian'] || ""),
-                    condition: String(r['Condition'] || "Good working condition")
+                    deviceCode: String(r['Device Code'] || r['deviceCode'] || ""),
+                    serialNumber: String(r['Serial Number'] || r['serialNumber'] || ""),
+                    brand: String(r['Brand'] || r['brand'] || ""),
+                    type: String(r['Type'] || r['type'] || ""),
+                    custodian: String(r['Employee Custodian'] || r['custodian'] || ""),
+                    condition: String(r['Condition'] || r['condition'] || "Good working condition")
                 })).filter(i => i.deviceCode);
                 await db.assets.bulkPut(mapped);
                 updateStatus();
@@ -317,24 +317,42 @@
             XLSX.writeFile(wb, `BNHS_Inventory.xlsx`);
         }
 
+        // IMPROVED SEARCH FUNCTION
         async function performSearch() {
             const q = document.getElementById('searchInput').value.trim().toLowerCase();
             const list = document.getElementById('searchList');
-            if(q.length < 2) { list.innerHTML = ""; return; }
             
-            // Search in both deviceCode and serialNumber
-            const res = await db.assets.filter(a => {
-                const codeMatch = a.deviceCode.toLowerCase().includes(q);
-                const serialMatch = a.serialNumber && a.serialNumber.toLowerCase().includes(q);
-                return codeMatch || serialMatch;
-            }).limit(10).toArray();
+            if(q.length < 2) { 
+                list.innerHTML = ""; 
+                list.style.display = "none";
+                return; 
+            }
+            
+            try {
+                // Fetch all to perform manual include check (Dexie filter)
+                const res = await db.assets.filter(a => {
+                    const codeStr = String(a.deviceCode || "").toLowerCase();
+                    const serialStr = String(a.serialNumber || "").toLowerCase();
+                    return codeStr.includes(q) || serialStr.includes(q);
+                }).limit(15).toArray();
 
-            list.innerHTML = res.map(a => `
-                <div onclick="selectAsset('${a.deviceCode}')" style="padding:10px; border-bottom:1px solid #eee; font-size: 13px;">
-                    <b>Code:</b> ${a.deviceCode}<br>
-                    <small style="color: #666;"><b>SN:</b> ${a.serialNumber || 'N/A'}</small>
-                </div>
-            `).join('');
+                if (res.length > 0) {
+                    list.style.display = "block";
+                    list.innerHTML = res.map(a => `
+                        <div onclick="selectAsset('${a.deviceCode}')" style="padding:12px; border-bottom:1px solid #eee; cursor:pointer; background: white;">
+                            <div style="font-weight: bold; color: var(--dark);">${a.deviceCode}</div>
+                            <div style="font-size: 11px; color: #666;">
+                                SN: ${a.serialNumber || '---'} | ${a.brand || ''} ${a.type || ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    list.innerHTML = "<div style='padding:10px; color: #999; text-align:center;'>No matches found</div>";
+                    list.style.display = "block";
+                }
+            } catch (err) {
+                console.error("Search Error:", err);
+            }
         }
 
         document.addEventListener("DOMContentLoaded", updateStatus);
