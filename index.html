@@ -107,8 +107,8 @@
     </div>
 
     <div class="card">
-        <h3>2. Search & Tools</h3>
-        <input type="text" id="searchInput" placeholder="Search Code..." onkeyup="performSearch()">
+        <h3>2. Search Tool</h3>
+        <input type="text" id="searchInput" placeholder="Search Code or Serial..." onkeyup="performSearch()">
         <div id="searchList" style="max-height: 120px; overflow-y: auto;"></div>
         
         <button class="btn-primary" onclick="exportToExcel()" style="margin-top:15px;">📥 Download Report</button>
@@ -318,11 +318,23 @@
         }
 
         async function performSearch() {
-            const q = document.getElementById('searchInput').value.trim();
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
             const list = document.getElementById('searchList');
             if(q.length < 2) { list.innerHTML = ""; return; }
-            const res = await db.assets.filter(a => a.deviceCode.toLowerCase().includes(q.toLowerCase())).limit(5).toArray();
-            list.innerHTML = res.map(a => `<div onclick="selectAsset('${a.deviceCode}')" style="padding:10px; border-bottom:1px solid #eee;"><b>${a.deviceCode}</b></div>`).join('');
+            
+            // Search in both deviceCode and serialNumber
+            const res = await db.assets.filter(a => {
+                const codeMatch = a.deviceCode.toLowerCase().includes(q);
+                const serialMatch = a.serialNumber && a.serialNumber.toLowerCase().includes(q);
+                return codeMatch || serialMatch;
+            }).limit(10).toArray();
+
+            list.innerHTML = res.map(a => `
+                <div onclick="selectAsset('${a.deviceCode}')" style="padding:10px; border-bottom:1px solid #eee; font-size: 13px;">
+                    <b>Code:</b> ${a.deviceCode}<br>
+                    <small style="color: #666;"><b>SN:</b> ${a.serialNumber || 'N/A'}</small>
+                </div>
+            `).join('');
         }
 
         document.addEventListener("DOMContentLoaded", updateStatus);
